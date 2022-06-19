@@ -10,6 +10,7 @@ import com.sun.tools.javac.tree.JCTree.JCCompilationUnit;
 import com.sun.tools.javac.tree.JCTree.JCAssign;
 import com.sun.tools.javac.tree.JCTree.JCExpressionStatement;
 import com.sun.tools.javac.tree.JCTree.JCVariableDecl;
+import com.sun.tools.javac.tree.JCTree.JCClassDecl;
 import com.sun.tools.javac.code.Kinds.KindSelector;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Context;
@@ -44,31 +45,54 @@ public class MixinCastTreeInjector extends TreeScanner<Object, Object> {
     }
 
 
+    private JCCompilationUnit tree;
+
     private Env<AttrContext> env;
 
     @Override
     public Object visitCompilationUnit(CompilationUnitTree node, Object o) {
         if (node instanceof JCCompilationUnit tree) {
             this.env = enter.getTopLevelEnv(tree);
-            attr.attribTopLevel(env);
+            this.tree = tree;
+            attr.attrib(env);
         }
 
         return super.visitCompilationUnit(node, o);
     }
 
+
+    /**
+     * <p>
+     *     Handles class declarations. <code>node</code> is always of type <code>JCClassDecl</code>.
+     * </p>
+     * 
+     * @param node
+     * @param o
+     * @return
+     */
     @Override
     public Object visitClass(ClassTree node, Object o) {
+        if (node instanceof JCClassDecl clazz) {
+            attr.attribClass(clazz.pos(), ((JCClassDecl) node).sym);
+        }
 
         return super.visitClass(node, o);
     }
 
 
     /**
-     * input:
-     *   MCBlockPos blockPos = new BlockPos(1,2,3);
-     *
-     * output:
-     *   MCBlockPos blockPos = (MCBlockPos) new BlockPos(1,2,3);
+     * <p>
+     *     Handles variable declarations with initializers. <code>node</code> is always of type <code>JCVariableDecl</code>.
+     *     We only care about declarations that include an initializer for adding casts.
+     * </p>
+     * <p>
+     *     We must determine the variables type. If it is a Mixin interface, we inject the appropriate cast.
+     * </p>
+     * <note>For assignments outside of declarations see <code>visitExpressionStatement</code>.</note>
+     * <p>
+     *     input: <code>MCBlockPos blockPos = new BlockPos(1,2,3);</code><br />
+     *     output: <code>MCBlockPos blockPos = <i>(MCBlockPos)</i> new BlockPos(1,2,3);</code>
+     * </p>
      *
      * @param node
      * @param o
@@ -110,15 +134,21 @@ public class MixinCastTreeInjector extends TreeScanner<Object, Object> {
 
 
     /**
-     * input:
-     *   blockPos = new BlockPos(1,2,3);
-     *
-     * output:
-     *   blockPos = (MCBlockPos) new BlockPos(1,2,3);
-     *
-     * @param node
-     * @param o
-     * @return
+     * <p>
+     *     Handles assignments to previously declared variables and fields. <code>node</code> is always of type
+     *     <code>JCExpressionStatement</code>. If the expression is an assignment, its <code>expr</code> will be of type
+     *     <code>JCAssign</code>.
+     * </p>
+     * <p>
+     *     We have to differentiate between assignments to variables (lhs is <code>JCIdent</code>) and assignments to
+     *     fields (lhs is <code>JCFieldAccess</code>). In either case, we need to determine the type of the variable/field
+     *     and inject a cast, if it is a Mixin interface.
+     * </p>
+     * <note>For variable initializers see <code>visitVariable</code>.</note>
+     * <p>
+     *     input: <code>blockPos = new BlockPos(1,2,3);</code><br />
+     *     output: <code>blockPos = <i>(MCBlockPos)</i> new BlockPos(1,2,3);</code>
+     * </p>
      */
     @Override
     public Object visitExpressionStatement(ExpressionStatementTree node, Object o) {
@@ -132,7 +162,6 @@ public class MixinCastTreeInjector extends TreeScanner<Object, Object> {
                 // resolve the left-hand side using the Resolver
                 Symbol vartypeSym = resolveUtils.resolveIdent(env, varIdent, KindSelector.VAR);
 
-                System.out.println("!");
             }
 
             // ex: this.x = y;
@@ -145,6 +174,23 @@ public class MixinCastTreeInjector extends TreeScanner<Object, Object> {
         return super.visitExpressionStatement(node, o);
     }
 
+
+    /**
+     * <p>
+     *     Handles method invocations. The node provides the list of type arguments, the method arguments as well as a
+     *     method selector. The method selector may either be a <code>JCIdent</code> (e.g. <code><i>doSomething</i>()</code>,
+     *     a <code>JCFieldAccess</code> (e.g. <code><i>object.doSomething</i>()</code>) or an entire expression.
+     * </p>
+     * <p>
+     *     Given the method selector, type arguments and method arguments, we must first determine the method being called.
+     *     If the method signature uses Mixin interfaces, javac's default method resolution will fail, unless the provided
+     *     arguments implement the interface.
+     * </p>
+     * <p>
+     *     input: <code>doSomething(blockPos);</code><br />
+     *     output: <code>doSomething((MCBlockPos) blockPos);</code>
+     * </p>
+     */
     @Override
     public Object visitMethodInvocation(MethodInvocationTree node, Object o) {
 
@@ -176,35 +222,4 @@ public class MixinCastTreeInjector extends TreeScanner<Object, Object> {
         Object result = super.visitMethodInvocation(node, o);
         return result;
     }
-
-    /**
-     * Injects casts for accessing mixed in methods on objects.
-     *
-     * @param node
-     * @param o
-     * @return
-     */
-    @Override
-    public Object visitMemberSelect(MemberSelectTree node, Object o) {
-
-        // TODO:
-        //  Check if node.selected is a mixed in object.
-        //  If it is, attempt to resolve node.name normally.
-        //  If normal resolving doesn't work, try using the mixin interfaces instead.
-        //  If an interface implements the member, inject a cast thi the interface.
-
-        Object result = super.visitMemberSelect(node, o);
-        return result;
-    }
-
-    /*
-    @Override
-    public Object visitIdentifier(IdentifierTree node, Object o) {
-
-        JCIdent ident = (JCIdent) node;
-        Symbol symbol = resolveUtils.resolveIdent(ident, KindSelector.TYP);
-
-        return super.visitIdentifier(node, o);
-    }
-     */
 }
