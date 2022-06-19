@@ -19,6 +19,10 @@ public class BlockPos {
     }
 
 
+    public BlockPos clone() {
+        return new BlockPos(x, y, z);
+    }
+
     public int getX() {
         return x;
     }

@@ -20,29 +20,23 @@ public class MixinAwarenessTaskListener implements TaskListener {
 
 
     public void started(TaskEvent e) {
-        if (e.getKind() == TaskEvent.Kind.ENTER) {
-            TreeScanner<Object, Object> scanner = new MixinTreeScanner(context);
+//        if (e.getKind() == TaskEvent.Kind.ENTER) {
+//            TreeScanner<Object, Object> scanner = new MixinTreeScanner(context);
+//            System.out.println("Started ENTER ");
+//            e.getCompilationUnit().accept(scanner, null);
+//        }
+
+        if (e.getKind() == TaskEvent.Kind.ANALYZE) {
+            TreeScanner<Object, Object> scanner = new MixinCastTreeInjector(context);
             e.getCompilationUnit().accept(scanner, null);
         }
     }
 
     public void finished(TaskEvent e) {
         if (e.getKind() == TaskEvent.Kind.ENTER) {
-            TreeScanner<Object, Object> scanner = new MixinCastTreeInjector(e.getCompilationUnit(), context);
+            TreeScanner<Object, Object> scanner = new MixinTreeScanner(context);
             e.getCompilationUnit().accept(scanner, null);
         }
-    }
 
-
-    private JCTree.JCClassDecl findTopLevel(Symbol.ClassSymbol type, List<? extends Tree> typeDecls)
-    {
-        for( Tree tree: typeDecls )
-        {
-            if( tree instanceof JCTree.JCClassDecl && ((JCTree.JCClassDecl)tree).sym == type )
-            {
-                return (JCTree.JCClassDecl)tree;
-            }
-        }
-        return null;
     }
 }

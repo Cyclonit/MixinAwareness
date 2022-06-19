@@ -8,12 +8,20 @@ import com.sun.tools.javac.tree.JCTree.JCIdent;
 import com.sun.tools.javac.tree.JCTree.JCFieldAccess;
 import com.sun.tools.javac.tree.JCTree.JCClassDecl;
 import com.sun.tools.javac.tree.JCTree.JCExpression;
+import com.sun.tools.javac.tree.JCTree.JCAnnotation;
+import com.sun.tools.javac.tree.JCTree.JCAssign;
+import com.sun.tools.javac.code.Symbol.ClassSymbol;
 import com.sun.tools.javac.util.Name;
+import com.sun.tools.javac.util.Names;
+import com.sun.tools.javac.code.Type;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class MixinTreeScanner extends TreeScanner<Object, Object> {
+
+    private static final String MIXIN_ANNOTATION_FULLNAME = "de.cyclonit.mixinawareness.test.Mixin";
+
 
     private CompilationUnitTree tree;
 
@@ -21,10 +29,13 @@ public class MixinTreeScanner extends TreeScanner<Object, Object> {
 
     private final MixinRegistry mixinRegistry;
 
+    private final Names names;
+
 
     public MixinTreeScanner(Context context) {
         this.treeMaker = TreeMaker.instance(context);
         this.mixinRegistry = MixinRegistry.instance(context);
+        this.names = Names.instance(context);
     }
 
 
@@ -40,33 +51,49 @@ public class MixinTreeScanner extends TreeScanner<Object, Object> {
         Object result = super.visitClass(node, o);
 
         ModifiersTree modifiers = node.getModifiers();
-        for (AnnotationTree annotation : modifiers.getAnnotations()) {
+        for (AnnotationTree annotationTree : modifiers.getAnnotations()) {
+            JCAnnotation annotation = (JCAnnotation) annotationTree;
+
             JCIdent ident = (JCIdent) annotation.getAnnotationType();
-            if (ident.getName().toString().equals("Mixin")) {
+            ClassSymbol annotationClassSym = (ClassSymbol) ident.sym;
+
+            // TODO: Find a better way to identify the mixin annotation
+            if (annotationClassSym.fullname.toString().equals(MIXIN_ANNOTATION_FULLNAME)) {
+
+                // get the mixin type
                 JCClassDecl classDecl = (JCClassDecl) node;
+                Type.ClassType mixinType = (Type.ClassType) classDecl.sym.type;
 
-                // get the fully qualified identifier of this class
-                JCFieldAccess packageName = (JCFieldAccess) tree.getPackageName();
-                Name className = classDecl.name;
-                JCFieldAccess mixinIdentifier = treeMaker.Select(packageName, className);
+                // get the target type
+                Type.ClassType targetType = null;
+                for (JCExpression argExpr : annotation.args) {
 
-                // get the fully qualified identifier of the targeted class
-                JCFieldAccess targetIdentifier = getMixinTarget(annotation);
+                    JCAssign argAssign = (JCAssign) argExpr;
+                    JCIdent argIdent = (JCIdent) argAssign.getVariable();
 
-                // get fully qualified identifiers for all implemented interfaces
-                List<JCFieldAccess> interfaceIdentifiers = new ArrayList<>();
-                for (JCExpression implementsExpr : classDecl.implementing) {
-                    interfaceIdentifiers.add(getFullyQualifiedIdentifier(implementsExpr));
+                    if (argIdent.name.contentEquals("value"))
+                    {
+                        JCFieldAccess valueExpr = (JCFieldAccess) argAssign.getExpression();
+                        targetType = (Type.ClassType) valueExpr.selected.type;
+                    }
+                }
+                if (targetType == null) {
+                    throw new RuntimeException("Could not resolve Mixin target type on Mixin class " + mixinType + ".");
                 }
 
-                mixinRegistry.addMixin(targetIdentifier, mixinIdentifier, interfaceIdentifiers);
+                mixinRegistry.addMixin(mixinType, targetType);
 
                 // only a single @Mixin annotation is permitted per class
                 break;
             }
         }
 
-        return super.visitClass(node, o);
+        return result;
+    }
+
+    private Name formFlatName(JCFieldAccess qualifiedAccess) {
+        String nameString = qualifiedAccess.toString();
+        return names.fromString(nameString);
     }
 
     private JCFieldAccess getMixinTarget(AnnotationTree annotation) {

@@ -5,33 +5,66 @@ public class Main {
     public static void main(String[] args) {
 
         /*
-         * Expected Transform:
-         *   MCBlockPos blockPos = ((MCBlockPos) new BlockPos(1, 2, 3));
+         * method: visitVariable
+         * node: JCVariableDecl
+         *   vartype:
+         *   init:
          */
-        MCBlockPos blockPos = new BlockPos(1, 2, 3);
+        MCBlockPos mcBlockPos = returnBlockPos();
 
         /*
-         * Expected Transform:
-         *   acceptBlockPos((MCBlockPos) blockPos);
+         * method: visitVariable
+         * node: JCVariableDecl
+         *   vartype:
+         *   init:
          */
-        acceptBlockPos(blockPos);
+        MCBlockPos mcBlockPos2 = new BlockPos(1, 2, 3);
 
         /*
-         * Expected Transform:
-         *   ((MCBlockPos) blockPos).asCubePos();
+         * method: visitVariable
+         * node: JCVariableDecl
+         *   vartype:
+         *   init:
          */
-        blockPos.asCubePos();
+        MCBlockPos mcBlockPos3 = blockPos2.clone();
+
 
         /*
-         * Transformation Steps
+         * method: visitExpressionStatement
+         * node: JCExpression
+         *   expr: JCAssign
          *
-         * 1. identify which classes are being mixed into and the respective interfaces
-         *
-         * 2.
          */
+        mcBlockPos = returnBlockPos();
+
+        /*
+         *
+         *   vartype:
+         *   init:
+         */
+        mcBlockPos = new BlockPos(1, 2, 3);
+
+        /*
+         *
+         *
+         */
+        mcBlockPos = mcBlockPos.clone();
+
+
+        Block block = new Block(new BlockPos(1, 2, 3));
+
+
+        block.pos = mcBlockPos;
+
+
+        acceptBlockPos(new BlockPos(1, 2, 3));
     }
 
 
     private static void acceptBlockPos(MCBlockPos blockPos) {
+    }
+
+    private static BlockPos returnBlockPos() {
+        return new BlockPos(7, 8, 9);
     }
 }

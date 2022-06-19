@@ -21,21 +21,16 @@ public class ResolveUtils {
 
     private final Resolve resolve;
 
-    private final Env<AttrContext> env;
-
     private final Method resolveIdentMethod;
 
+    private final Method findTypeMethod;
 
-    public ResolveUtils(CompilationUnitTree tree, Context context) {
+    private final Enter enter;
+
+
+    public ResolveUtils(Context context) {
         this.resolve = Resolve.instance(context);
-
-        if (tree.getKind() == Tree.Kind.COMPILATION_UNIT) {
-            Enter enter = Enter.instance(context);
-            env = enter.getTopLevelEnv((JCTree.JCCompilationUnit)tree);
-        }
-        else {
-            throw new RuntimeException("Unsupported Tree.Kind " + tree.getKind().name() + ", expected " + Tree.Kind.COMPILATION_UNIT.name());
-        }
+        this.enter = Enter.instance(context);
 
         try {
             resolveIdentMethod = resolve.getClass().getDeclaredMethod("resolveIdent", JCDiagnostic.DiagnosticPosition.class, Env.class, Name.class, Kinds.KindSelector.class);
@@ -43,14 +38,37 @@ public class ResolveUtils {
         } catch (Exception ex) {
             throw new RuntimeException("Could not resolve method Resolve.resolveIdent(...).", ex);
         }
+
+        try {
+            findTypeMethod = resolve.getClass().getDeclaredMethod("findType", Env.class, Name.class);
+            findTypeMethod.setAccessible(true);
+        } catch (Exception ex) {
+            throw new RuntimeException("Could not resolve method Resolve.findType(...).", ex);
+        }
     }
 
 
-    public Symbol resolveIdent(JCIdent ident, KindSelector kind) {
+    public Symbol resolveName(Env<AttrContext> env, Name name, KindSelector kind) {
+        try {
+            return (Symbol) resolveIdentMethod.invoke(resolve, null /* TODO: Provide a correct pos */, env, name, kind);
+        } catch (Exception ex) {
+            throw new RuntimeException("Could not invoke method Resolve.resolveIdent(...).", ex);
+        }
+    }
+
+    public Symbol resolveIdent(Env<AttrContext> env, JCIdent ident, KindSelector kind) {
         try {
             return (Symbol) resolveIdentMethod.invoke(resolve, ident.pos(), env, ident.name, kind);
         } catch (Exception ex) {
             throw new RuntimeException("Could not invoke method Resolve.resolveIdent(...).", ex);
+        }
+    }
+
+    public Symbol.ClassSymbol findType(Env<AttrContext> env, Name name) {
+        try {
+            return (Symbol.ClassSymbol) findTypeMethod.invoke(resolve, env, name);
+        } catch (Exception ex) {
+            throw new RuntimeException("Could not invoke method Resolve.findType(...).", ex);
         }
     }
 }

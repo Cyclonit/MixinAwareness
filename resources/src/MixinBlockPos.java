@@ -1,9 +1,12 @@
 package de.cyclonit.mixinawareness.mixin;
 
+import de.cyclonit.mixinawareness.test.Mixin;
+import de.cyclonit.mixinawareness.test.MCBlockPos;
 import de.cyclonit.mixinawareness.test.BlockPos;
+import de.cyclonit.mixinawareness.test.CubePos;
 
 @Mixin(BlockPos.class)
-public class MixinBlockPos implements de.cyclonit.mixinawareness.test.MCBlockPos {
+public class MixinBlockPos implements MCBlockPos {
 
     public int getX() {
         return x;
