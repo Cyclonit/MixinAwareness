@@ -10,7 +10,7 @@ import com.sun.tools.javac.tree.JCTree.JCCompilationUnit;
 import com.sun.tools.javac.tree.JCTree.JCAssign;
 import com.sun.tools.javac.tree.JCTree.JCExpressionStatement;
 import com.sun.tools.javac.tree.JCTree.JCVariableDecl;
-import com.sun.tools.javac.tree.JCTree.JCClassDecl;
+import com.sun.tools.javac.code.Kinds.KindSelector;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.comp.AttrContext;
@@ -76,24 +76,36 @@ public class MixinCastTreeInjector extends TreeScanner<Object, Object> {
      */
     @Override
     public Object visitVariable(VariableTree node, Object o) {
+        Object result = super.visitVariable(node, o);
 
         if (node instanceof JCVariableDecl variable
             && variable.init != null
             && variable.vartype instanceof JCIdent vartypeIdent) {
 
-            // TODO: Resolve the variable's type if it is not yet set
-            if (vartypeIdent.type == null) {
+            Type.ClassType vartype = null;
 
+            // if the variable's type is already determined, use it
+            if (vartypeIdent.type != null) {
+                vartype = (Type.ClassType) vartypeIdent.type;
+            }
+
+            // otherwise, resolve its type using the Resolver
+            else {
+                Symbol vartypeSym = resolveUtils.resolveIdent(env, vartypeIdent, KindSelector.TYP);
+                if (vartypeSym.type instanceof Type.ClassType symType)
+                    vartype = symType;
+                else
+                    System.out.println("Could not resolve type of variable " + node + ".");
             }
 
             // if the variable's type is a mixin interface, inject a cast
             // TODO: Determine type of the init expression and only add the cast if necessary.
             // TODO: Verify that the expression's type can be cast to the mixin interface.
-            if (mixinRegistry.isMixinInterface((Type.ClassType) vartypeIdent.type))
-                variable.init = treeMaker.TypeCast(vartypeIdent.type, variable.init);
+            if (vartype != null && mixinRegistry.isMixinInterface(vartype))
+                variable.init = treeMaker.TypeCast(vartype, variable.init);
         }
 
-        return super.visitVariable(node, o);
+        return result;
     }
 
 
@@ -114,7 +126,20 @@ public class MixinCastTreeInjector extends TreeScanner<Object, Object> {
         if (node instanceof JCExpressionStatement expression
             && expression.expr instanceof JCAssign assignment) {
 
-            System.out.println("!");
+            // ex: x = y;
+            if (assignment.lhs instanceof JCIdent varIdent) {
+
+                // resolve the left-hand side using the Resolver
+                Symbol vartypeSym = resolveUtils.resolveIdent(env, varIdent, KindSelector.VAR);
+
+                System.out.println("!");
+            }
+
+            // ex: this.x = y;
+            else if (assignment.lhs instanceof JCFieldAccess fieldIdent) {
+                // TODO: Implement transformation for setting fields
+            }
+
         }
 
         return super.visitExpressionStatement(node, o);
