@@ -1,7 +1,5 @@
 package de.cyclonit.mixinawareness;
 
-import com.sun.source.tree.CompilationUnitTree;
-import com.sun.source.tree.Tree;
 import com.sun.tools.javac.comp.AttrContext;
 import com.sun.tools.javac.comp.Enter;
 import com.sun.tools.javac.comp.Env;
@@ -9,7 +7,6 @@ import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Kinds.KindSelector;
 import com.sun.tools.javac.comp.Resolve;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.JCTree.JCIdent;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.JCDiagnostic;
@@ -18,6 +15,8 @@ import com.sun.tools.javac.util.Name;
 import java.lang.reflect.Method;
 
 public class ResolveUtils {
+    protected static final Context.Key<ResolveUtils> resolveUtilsKey = new Context.Key<>();
+
 
     private final Resolve resolve;
 
@@ -28,7 +27,15 @@ public class ResolveUtils {
     private final Enter enter;
 
 
-    public ResolveUtils(Context context) {
+    public static ResolveUtils instance(Context context) {
+        ResolveUtils instance = context.get(resolveUtilsKey);
+        if (instance == null)
+            instance = new ResolveUtils(context);
+        return instance;
+    }
+
+
+    protected ResolveUtils(Context context) {
         this.resolve = Resolve.instance(context);
         this.enter = Enter.instance(context);
 

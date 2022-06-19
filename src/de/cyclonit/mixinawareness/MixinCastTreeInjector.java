@@ -32,12 +32,15 @@ public class MixinCastTreeInjector extends TreeScanner<Object, Object> {
 
     private final MixinRegistry mixinRegistry;
 
+    private final ResolveUtils resolveUtils;
+
 
     public MixinCastTreeInjector(Context context) {
         this.treeMaker = TreeMaker.instance(context);
         this.enter = Enter.instance(context);
         this.mixinRegistry = MixinRegistry.instance(context);
         this.attr = Attr.instance(context);
+        this.resolveUtils = ResolveUtils.instance(context);
     }
 
 
